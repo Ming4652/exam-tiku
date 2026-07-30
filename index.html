@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>劳动保障监察协理员考试题库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 头部 -->
+<div class="header">
+  <h1>劳动保障监察协理员考试题库</h1>
+  <p>覆盖7大劳动法规分类 · 200+道题 · 5种题型</p>
+</div>
+
+<!-- 桌面导航 -->
+<div class="nav-bar">
+  <button class="nav-btn active" id="nav-home">首页</button>
+  <button class="nav-btn" id="nav-category">分类练习</button>
+  <button class="nav-btn" id="nav-wrongbook">错题本</button>
+</div>
+
+<!-- ====== 首页 ====== -->
+<div class="container page" id="page-home">
+  <!-- 统计 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="num" id="total-count">-</div>
+      <div class="label">总题量</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="total-types">5</div>
+      <div class="label">题型种类</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="total-cats">7</div>
+      <div class="label">法规分类</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="wrong-count">-</div>
+      <div class="label">错题数</div>
+    </div>
+  </div>
+
+  <!-- 快捷入口 -->
+  <div style="display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;">
+    <button class="btn btn-accent" id="btn-start-exam" style="flex:1;">模拟考试 (50题/60分钟)</button>
+    <button class="btn btn-primary" id="btn-go-category" style="flex:1;">分类练习</button>
+  </div>
+
+  <!-- 分类入口 -->
+  <h3 style="margin:16px 0 8px;font-size:1.05rem;">按法规分类练习</h3>
+  <div class="category-grid" id="home-categories"></div>
+</div>
+
+<!-- ====== 分类练习 ====== -->
+<div class="container page hidden" id="page-category">
+  <div class="toolbar">
+    <button class="btn btn-outline btn-sm" id="cat-back">← 返回首页</button>
+    <h2 id="cat-title" style="font-size:1.1rem;">全部分类</h2>
+    <span></span>
+  </div>
+  <div>筛选题型：</div>
+  <div class="type-tags" id="type-tags"></div>
+  <div id="question-list"></div>
+  <button class="btn btn-accent btn-block hidden" id="start-practice">开始练习</button>
+</div>
+
+<!-- ====== 答题页 ====== -->
+<div class="container page hidden" id="page-exam">
+  <!-- 考试计时器 -->
+  <div class="timer hidden" id="exam-header">
+    <span>⏱ 剩余时间：</span>
+    <span id="exam-timer">60:00</span>
+  </div>
+
+  <!-- 进度 -->
+  <div class="card" style="margin-bottom:12px;">
+    <div class="progress-text" id="exam-progress-text">1/50</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="exam-progress-bar" style="width:2%;"></div>
+    </div>
+  </div>
+
+  <!-- 题目 -->
+  <div class="question-card">
+    <div class="q-header">
+      <span class="q-num" id="q-number">第 1 题</span>
+      <span class="q-type-badge badge-single" id="q-type-badge">单选题</span>
+    </div>
+    <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px;" id="q-category-info"></div>
+    <div class="q-title" id="q-title"></div>
+    <div class="options" id="q-options"></div>
+    <div id="q-input-wrap" class="hidden">
+      <textarea class="text-input" id="answer-input" rows="3" placeholder="请输入答案..."></textarea>
+    </div>
+    <div class="explanation" id="q-explanation"></div>
+  </div>
+
+  <!-- 导航按钮 -->
+  <div style="display:flex;gap:12px;margin-top:16px;">
+    <button class="btn btn-outline" id="btn-prev" style="flex:1;">上一题</button>
+    <button class="btn btn-primary" id="btn-next" style="flex:1;">下一题</button>
+  </div>
+</div>
+
+<!-- ====== 结果页 ====== -->
+<div class="container page hidden" id="page-result">
+  <div class="card result-card">
+    <div class="result-score" id="result-score">0</div>
+    <div class="result-label">正确 / <span id="result-total">0</span> 题</div>
+    <div style="font-size:1.4rem;font-weight:700;color:var(--primary);" id="result-grade"></div>
+    <div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">正确率：<span id="result-rate">0%</span> <span id="result-note"></span></div>
+    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btn-retry">返回首页</button>
+      <button class="btn btn-outline" id="btn-review">查看错题本</button>
+    </div>
+  </div>
+  <h3 style="margin:16px 0;">逐题解析</h3>
+  <div id="result-details"></div>
+</div>
+
+<!-- ====== 错题本 ====== -->
+<div class="container page hidden" id="page-wrongbook">
+  <h2 style="margin:12px 0;">错题本 <span style="font-size:0.9rem;color:var(--text-light);">（共 <span id="wrong-count-display">0</span> 题）</span></h2>
+  <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;">
+    <select id="wrong-cat-filter" style="padding:8px 12px;border:2px solid var(--border);border-radius:var(--radius);font-size:0.9rem;min-height:44px;">
+      <option value="">全部分类</option>
+    </select>
+    <button class="btn btn-outline btn-sm hidden" id="redo-wrong">重做错题</button>
+    <button class="btn btn-outline btn-sm" id="clear-wrong" style="color:var(--danger);border-color:var(--danger);">清空错题本</button>
+  </div>
+  <div class="wrong-list" id="wrong-list"></div>
+</div>
+
+<!-- 底部导航（移动端） -->
+<div class="bottom-nav">
+  <button class="nav-item active" id="bn-home">
+    <span class="icon">&#8962;</span>首页
+  </button>
+  <button class="nav-item" id="bn-category">
+    <span class="icon">&#9776;</span>分类练习
+  </button>
+  <button class="nav-item" id="bn-wrongbook">
+    <span class="icon">&#10006;</span>错题本
+  </button>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
