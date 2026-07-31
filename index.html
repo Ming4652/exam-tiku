@@ -16,6 +16,7 @@
   <button class="nav-btn" id="nav-category">分类练习</button>
   <button class="nav-btn" id="nav-recite">背诵模式</button>
   <button class="nav-btn" id="nav-wrongbook">错题本</button>
+<button class="nav-btn" id="nav-history">练习历史</button>
 </div>
 <div class="container page" id="page-home">
   <div class="stats-grid">
@@ -43,6 +44,20 @@
       </div>
     </div>
   </div>
+
+  <div class="history-entry-card" id="home-history-card">
+    <div class="history-entry-left">
+      <div class="history-entry-icon">&#128337;</div>
+      <div class="history-entry-info">
+        <div class="history-entry-title">练习历史</div>
+        <div class="history-entry-desc" id="history-summary">暂无练习记录</div>
+      </div>
+    </div>
+    <div class="history-entry-right">
+      <div class="history-entry-stats" id="history-recent-stats"></div>
+    </div>
+  </div>
+
   <h3 style="margin:16px 0 8px;font-size:1.05rem;">按法规分类练习</h3>
   <div class="category-grid" id="home-categories"></div>
 </div>
@@ -54,7 +69,7 @@
   <div>筛选题型：</div>
   <div class="type-tags" id="type-tags"></div>
   <div id="question-list"></div>
-  <button class="btn btn-accent btn-block hidden" id="start-practice">开始练习</button>
+  <div class="fixed-bottom-bar" id="start-practice-bar" style="display:none;"><button class="btn btn-accent btn-block" id="start-practice">开始练习</button></div>
 </div>
 <div class="container page hidden" id="page-exam">
   <div class="timer hidden" id="exam-header"><span>剩余时间：</span><span id="exam-timer">60:00</span></div>
@@ -154,6 +169,18 @@
     </div>
   </div>
 </div>
+
+<div class="container page hidden" id="page-history">
+  <div class="toolbar">
+    <button class="btn btn-outline btn-sm" id="history-back">← 返回首页</button>
+    <h2 style="font-size:1.1rem;">练习历史</h2><span></span>
+  </div>
+  <div style="display:flex;gap:8px;margin:12px 0;justify-content:flex-end;">
+    <button class="btn btn-outline btn-sm" id="clear-history" style="color:var(--danger);border-color:var(--danger);">清空历史</button>
+  </div>
+  <div id="history-list"></div>
+</div>
+
 <div class="container page hidden" id="page-recite-stats">
   <div class="toolbar">
     <button class="btn btn-outline btn-sm" id="recite-stats-back">← 返回</button>
@@ -174,7 +201,8 @@
   <button class="nav-item active" id="bn-home"><span class="icon">&#8962;</span>首页</button>
   <button class="nav-item" id="bn-category"><span class="icon">&#9776;</span>分类练习</button>
   <button class="nav-item" id="bn-recite"><span class="icon">&#128214;</span>背诵</button>
-  <button class="nav-item" id="bn-wrongbook"><span class="icon">&#10006;</span>错题本</button>
+  <button class="nav-item" id="bn-history"><span class="icon">&#128337;</span>历史</button>
+<button class="nav-item" id="bn-wrongbook"><span class="icon">&#10006;</span>错题本</button>
 </div>
 <script src="data.js"></script>
 <script src="app.js"></script>

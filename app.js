@@ -14,7 +14,7 @@
     examTimer:null, examSeconds:3600, wrongBook:[], typeFilter:{single:true,multiple:true,judge:true,fill:true,short:true}, categoryFilter:'',
     // 背诵模式状态
     reciteScope:{}, reciteQueue:[], reciteIndex:0, reciteResult:{remember:[], forgot:[]},
-    reciteIsFlipped:false, reciteEbbing:{}, reciteStartDate:null
+    reciteIsFlipped:false, reciteEbbing:{}, reciteStartDate:null, historyRecords:[]
   };
 
   const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
@@ -25,11 +25,13 @@
       const wb=localStorage.getItem('yjld_wrongbook'); if(wb) state.wrongBook=JSON.parse(wb);
       const eb=localStorage.getItem('yjld_ebbinghaus'); if(eb) state.reciteEbbing=JSON.parse(eb);
       const sd=localStorage.getItem('yjld_ebbing_start'); if(sd) state.reciteStartDate=sd;
+      const hr=localStorage.getItem('yjld_practice_history'); if(hr){try{state.historyRecords=JSON.parse(hr);}catch(e){state.historyRecords=[];}}
     }catch(e){}
   }
   function saveWrongBook(){ try{ localStorage.setItem('yjld_wrongbook',JSON.stringify(state.wrongBook)); }catch(e){} }
   function saveEbbing(){ try{ localStorage.setItem('yjld_ebbinghaus',JSON.stringify(state.reciteEbbing)); }catch(e){} }
   function saveEbbingStart(){ try{ localStorage.setItem('yjld_ebbing_start',state.reciteStartDate||''); }catch(e){} }
+  function saveHistory(){ try{ while(state.historyRecords.length>50) state.historyRecords.pop(); localStorage.setItem('yjld_practice_history',JSON.stringify(state.historyRecords)); }catch(e){} }
 
   // ========== 页面切换 ==========
   function showPage(name){
@@ -68,15 +70,32 @@
     const reviewIds=getTodayReviewIds();
     $('#recite-today').textContent=reviewIds.length;
     if(reviewIds.length>0) $('#recite-today').classList.add('has-review'); else $('#recite-today').classList.remove('has-review');
+    // 练习历史摘要
+    renderHomeHistoryCard();
 
     const catGrid=$('#home-categories');
     catGrid.innerHTML=CATEGORIES.map(c=>`<div class="cat-card" data-cat="${c}"><h3>${c}</h3><div class="info">${catStats[c]} 道题</div></div>`).join('');
     catGrid.querySelectorAll('.cat-card').forEach(card=>{card.addEventListener('click',()=>{state.categoryFilter=card.dataset.cat;renderCategory();});});
   }
 
+
+  function renderHomeHistoryCard(){
+    const recs=state.historyRecords;
+    if(recs.length===0){
+      $('#history-summary').textContent='暂无练习记录，快去练习吧！';
+      $('#history-recent-stats').innerHTML='';
+      return;
+    }
+    const last=recs[0];
+    $('#history-summary').textContent=`最近：${last.date} | ${last.category} | ${last.correct}/${last.total}`;
+    const recent=recs.slice(0,3);
+    $('#history-recent-stats').innerHTML=recent.map(r=>`<span class="history-mini">${r.date.slice(5)} ${r.category.slice(0,4)} ${r.rate}%</span>`).join('');
+  }
+
   // ========== 分类练习 ==========
   function renderCategory(){
     showPage('category');
+    $('#start-practice-bar').style.display='none';
     $('#cat-title').textContent=state.categoryFilter||'全部分类';
     const tagsWrap=$('#type-tags');
     tagsWrap.innerHTML=TYPES.map(t=>`<span class="type-tag tag-${t} ${state.typeFilter[t]?'active':''}" data-type="${t}">${TYPE_MAP[t]}</span>`).join('');
@@ -86,9 +105,9 @@
   function renderQuestionList(){
     let qs=ALL_QUESTIONS; if(state.categoryFilter) qs=qs.filter(q=>q.category===state.categoryFilter); qs=qs.filter(q=>state.typeFilter[q.type]);
     const list=$('#question-list');
-    if(qs.length===0){list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无符合条件的题目</div>';$('#start-practice').classList.add('hidden');return;}
+    if(qs.length===0){list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无符合条件的题目</div>';$('#start-practice-bar').style.display='none';return;}
     list.innerHTML=qs.map((q,i)=>`<div class="question-card"><div class="q-header"><span class="q-num">${i+1}. <span class="q-type-badge badge-${q.type}">${TYPE_MAP[q.type]}</span></span><span style="font-size:0.8rem;color:var(--text-light);">${q.category} | ${q.law}</span></div><div class="q-title">${q.question}</div>${q.options.length>0?`<div class="options">${q.options.map((o,oi)=>`<div class="option-btn"><span class="prefix">${String.fromCharCode(65+oi)}.</span>${o.replace(/^[A-D]\.\s*/,'')}</div>`).join('')}</div>`:''}</div>`).join('');
-    $('#start-practice').classList.remove('hidden'); $('#start-practice').onclick=()=>startPractice(qs);
+    $('#start-practice-bar').style.display='block'; $('#start-practice').onclick=()=>startPractice(qs);
   }
   function startPractice(qs){state.examMode=false;state.currentQuestions=qs;state.currentIndex=0;state.userAnswers={};clearInterval(state.examTimer);renderExamPage();}
 
@@ -134,8 +153,17 @@
     clearInterval(state.examTimer);if(state.examMode)$('#exam-header').classList.add('hidden');
     const qs=state.currentQuestions;let correct=0,total=qs.length;const details=[];
     qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);}details.push({question:q,userAnswer:userAns,isCorrect});});
-    saveWrongBook();showPage('result');
-    const rate=total>0?Math.round(correct/total*100):0;$('#result-score').textContent=correct;$('#result-total').textContent=total;$('#result-rate').textContent=rate+'%';
+    saveWrongBook();
+    const rate=total>0?Math.round(correct/total*100):0;
+    // 保存练习历史
+    const now=new Date();
+    const dateStr=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const catName=state.categoryFilter||'全部分类';
+    const activeTypes=TYPES.filter(t=>state.typeFilter[t]).map(t=>TYPE_MAP[t]).join('、')||'全部题型';
+    const detailRecs=details.map(d=>({questionId:d.question.id,userAnswer:d.userAnswer,correctAnswer:d.question.answer,isCorrect:d.isCorrect}));
+    state.historyRecords.unshift({date:dateStr,category:catName,types:activeTypes,total:total,correct:correct,rate:rate,details:detailRecs});
+    saveHistory();
+    showPage('result');$('#result-score').textContent=correct;$('#result-total').textContent=total;$('#result-rate').textContent=rate+'%';
     let gradeText='继续加油！';if(rate>=90)gradeText='优秀！';else if(rate>=75)gradeText='良好！';else if(rate>=60)gradeText='及格！';$('#result-grade').textContent=gradeText;
     const objQ=qs.filter(q=>q.type==='fill'||q.type==='short').length;$('#result-note').textContent=objQ>0?`（注：含${objQ}道主观题不计分）`:'';
     const detailWrap=$('#result-details');
@@ -274,6 +302,41 @@
     $('#round-view-stats').onclick=()=>renderReciteStats();
   }
 
+
+  // ========== 练习历史 ==========
+  function renderHistory(){
+    showPage('history');
+    const recs=state.historyRecords;
+    const list=$('#history-list');
+    if(recs.length===0){
+      list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无练习记录</div>';
+      return;
+    }
+    list.innerHTML=recs.map((r,i)=>{
+      const rateCls=r.rate>=80?'var(--success)':r.rate>=60?'var(--accent)':'var(--danger)';
+      const detailRows=r.details.map((d,j)=>{
+        const icon=d.isCorrect?'&#10003;':'&#10007;';
+        const iconCls=d.isCorrect?'correct':'wrong';
+        let ansStr='';
+        if(Array.isArray(d.correctAnswer)){
+          ansStr='正确答案: '+d.correctAnswer.join(', ')+' | 你的答案: '+(Array.isArray(d.userAnswer)?d.userAnswer.join(', '):(d.userAnswer||'未作答'));
+        }else{
+          ansStr='正确答案: '+d.correctAnswer+' | 你的答案: '+(d.userAnswer||'未作答');
+        }
+        return `<div class="history-detail-row"><span class="history-detail-icon ${iconCls}">${icon}</span><span>第${j+1}题</span><span class="history-detail-answer">${ansStr}</span></div>`;
+      }).join('');
+      return `<div class="history-item" data-idx="${i}"><div class="history-item-header"><span class="history-item-date">${r.date}</span><span class="history-item-cat">${r.category} | ${r.types}</span></div><div class="history-item-stats"><span class="history-item-rate" style="color:${rateCls};">${r.rate}%</span><span class="history-item-count">${r.correct}/${r.total} 正确</span></div><div class="history-item-detail" id="hist-detail-${i}">${detailRows}</div></div>`;
+    }).join('');
+    // 点击展开/折叠
+    list.querySelectorAll('.history-item').forEach(item=>{
+      item.addEventListener('click',function(e){
+        const idx=this.dataset.idx;
+        const detail=$('#hist-detail-'+idx);
+        if(detail) detail.classList.toggle('show');
+      });
+    });
+  }
+
   // ========== 背诵统计 ==========
   function renderReciteStats(){
     showPage('recite-stats');
@@ -297,9 +360,12 @@
   $('#bn-category').addEventListener('click',()=>{state.categoryFilter='';renderCategory();});
   $('#nav-wrongbook').addEventListener('click',renderWrongBook);
   $('#bn-wrongbook').addEventListener('click',renderWrongBook);
+  $('#nav-history').addEventListener('click',renderHistory);
+  $('#bn-history').addEventListener('click',renderHistory);
   $('#nav-recite').addEventListener('click',renderReciteScope);
   $('#bn-recite').addEventListener('click',renderReciteScope);
   $('#home-recite-card').addEventListener('click',renderReciteScope);
+  $('#home-history-card').addEventListener('click',renderHistory);
   $('#btn-start-exam').addEventListener('click',startExam);
   $('#btn-go-category').addEventListener('click',()=>{state.categoryFilter='';renderCategory();});
   $('#btn-prev').addEventListener('click',goPrev);
@@ -319,6 +385,8 @@
   $('#btn-forgot').addEventListener('click',()=>{if(!state.reciteIsFlipped) flipCard(); setTimeout(()=>recordAnswer(false),300);});
   $('#btn-remember').addEventListener('click',()=>{if(!state.reciteIsFlipped) flipCard(); setTimeout(()=>recordAnswer(true),300);});
   $('#recite-stats-back').addEventListener('click',()=>renderHome());
+  $('#history-back').addEventListener('click',renderHome);
+  $('#clear-history').addEventListener('click',()=>{if(confirm('确认清空所有练习历史记录？')){state.historyRecords=[];saveHistory();renderHistory();renderHomeHistoryCard();}});
   // 闪卡点击翻转
   $('#flashcard-scene').addEventListener('click',flipCard);
   // 触屏滑动
