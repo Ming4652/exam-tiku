@@ -95,19 +95,25 @@
   // ========== 分类练习 ==========
   function renderCategory(){
     showPage('category');
-    $('#start-practice-bar').style.display='none';
     $('#cat-title').textContent=state.categoryFilter||'全部分类';
     const tagsWrap=$('#type-tags');
     tagsWrap.innerHTML=TYPES.map(t=>`<span class="type-tag tag-${t} ${state.typeFilter[t]?'active':''}" data-type="${t}">${TYPE_MAP[t]}</span>`).join('');
-    tagsWrap.querySelectorAll('.type-tag').forEach(tag=>{tag.addEventListener('click',()=>{const t=tag.dataset.type;state.typeFilter[t]=!state.typeFilter[t];tag.classList.toggle('active',state.typeFilter[t]);renderQuestionList();});});
-    renderQuestionList();
+    tagsWrap.querySelectorAll('.type-tag').forEach(tag=>{tag.addEventListener('click',()=>{const t=tag.dataset.type;state.typeFilter[t]=!state.typeFilter[t];tag.classList.toggle('active',state.typeFilter[t]);updateStartButton();});});
+    updateStartButton();
   }
-  function renderQuestionList(){
+  function getFilteredQuestions(){
     let qs=ALL_QUESTIONS; if(state.categoryFilter) qs=qs.filter(q=>q.category===state.categoryFilter); qs=qs.filter(q=>state.typeFilter[q.type]);
-    const list=$('#question-list');
-    if(qs.length===0){list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无符合条件的题目</div>';$('#start-practice-bar').style.display='none';return;}
-    list.innerHTML=qs.map((q,i)=>`<div class="question-card"><div class="q-header"><span class="q-num">${i+1}. <span class="q-type-badge badge-${q.type}">${TYPE_MAP[q.type]}</span></span><span style="font-size:0.8rem;color:var(--text-light);">${q.category} | ${q.law}</span></div><div class="q-title">${q.question}</div>${q.options.length>0?`<div class="options">${q.options.map((o,oi)=>`<div class="option-btn"><span class="prefix">${String.fromCharCode(65+oi)}.</span>${o.replace(/^[A-D]\.\s*/,'')}</div>`).join('')}</div>`:''}</div>`).join('');
-    $('#start-practice-bar').style.display='block'; $('#start-practice').onclick=()=>startPractice(qs);
+    return qs;
+  }
+  function updateStartButton(){
+    const qs=getFilteredQuestions();
+    const btn=$('#start-practice');
+    if(qs.length===0){
+      btn.disabled=true; btn.textContent='开始练习';
+    }else{
+      btn.disabled=false; btn.textContent=`开始练习（${qs.length} 题）`;
+      btn.onclick=()=>{startPractice(qs);};
+    }
   }
   function startPractice(qs){state.examMode=false;state.currentQuestions=qs;state.currentIndex=0;state.userAnswers={};clearInterval(state.examTimer);renderExamPage();}
 
