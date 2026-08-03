@@ -11,7 +11,7 @@
 
   let state = {
     page:'home', examMode:false, currentQuestions:[], currentIndex:0, userAnswers:{},
-    examTimer:null, examSeconds:3600, wrongBook:[], typeFilter:{single:true,multiple:true,judge:true,fill:true,short:true}, categoryFilter:'',
+    examTimer:null, examSeconds:3600, wrongBook:[], wrongAnswers:{}, typeFilter:{single:true,multiple:true,judge:true,fill:true,short:true}, categoryFilter:'',
     // 背诵模式状态
     reciteScope:{}, reciteQueue:[], reciteIndex:0, reciteResult:{remember:[], forgot:[]},
     reciteIsFlipped:false, reciteEbbing:{}, reciteStartDate:null, historyRecords:[]
@@ -23,6 +23,7 @@
   function loadStorage(){
     try{
       const wb=localStorage.getItem('yjld_wrongbook'); if(wb) state.wrongBook=JSON.parse(wb);
+      const wa=localStorage.getItem('yjld_wrong_answers'); if(wa) state.wrongAnswers=JSON.parse(wa);
       const eb=localStorage.getItem('yjld_ebbinghaus'); if(eb) state.reciteEbbing=JSON.parse(eb);
       const sd=localStorage.getItem('yjld_ebbing_start'); if(sd) state.reciteStartDate=sd;
       const hr=localStorage.getItem('yjld_practice_history'); if(hr){try{state.historyRecords=JSON.parse(hr);}catch(e){state.historyRecords=[];}}
@@ -93,6 +94,7 @@
   }
 
   function saveWrongBook(){ try{ localStorage.setItem('yjld_wrongbook',JSON.stringify(state.wrongBook)); }catch(e){} }
+  function saveWrongAnswers(){ try{ localStorage.setItem('yjld_wrong_answers',JSON.stringify(state.wrongAnswers)); }catch(e){} }
   function saveEbbing(){ try{ localStorage.setItem('yjld_ebbinghaus',JSON.stringify(state.reciteEbbing)); }catch(e){} }
   function saveEbbingStart(){ try{ localStorage.setItem('yjld_ebbing_start',state.reciteStartDate||''); }catch(e){} }
   function saveHistory(){ try{ while(state.historyRecords.length>50) state.historyRecords.pop(); localStorage.setItem('yjld_practice_history',JSON.stringify(state.historyRecords)); }catch(e){} }
@@ -242,8 +244,9 @@ function doStartExam(){
     clearProgress();
     clearInterval(state.examTimer);if(state.examMode)$('#exam-header').classList.add('hidden');
     const qs=state.currentQuestions;let correct=0,total=qs.length;const details=[];
-    qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);}details.push({question:q,userAnswer:userAns,isCorrect});});
+    qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);state.wrongAnswers[q.id]=userAns;}details.push({question:q,userAnswer:userAns,isCorrect});});
     saveWrongBook();
+    saveWrongAnswers();
     const rate=total>0?Math.round(correct/total*100):0;
     // 保存练习历史
     const now=new Date();
@@ -262,15 +265,100 @@ function doStartExam(){
 
   // ========== 错题本 ==========
   function renderWrongBook(){
-    showPage('wrongbook'); const wrongQs=ALL_QUESTIONS.filter(q=>state.wrongBook.includes(q.id)); $('#wrong-count-display').textContent=wrongQs.length;
-    const catFilter=$('#wrong-cat-filter'); let currentCat=catFilter.value; const cats=[...new Set(wrongQs.map(q=>q.category))];
-    catFilter.innerHTML='<option value="">全部分类</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join(''); catFilter.value=currentCat||'';
-    let filtered=wrongQs; if(currentCat) filtered=filtered.filter(q=>q.category===currentCat);
-    const list=$('#wrong-list');
-    if(filtered.length===0){list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无错题</div>';$('#redo-wrong').classList.add('hidden');return;}
-    list.innerHTML=filtered.map((q,i)=>`<div class="wrong-item"><div class="q-header"><span class="q-num">${i+1}. <span class="q-type-badge badge-${q.type}">${TYPE_MAP[q.type]}</span></span><span style="font-size:0.8rem;color:var(--text-light);">${q.category} | ${q.law}</span></div><div class="q-title">${q.question}</div><div style="padding:6px 0;color:var(--success);font-size:0.85rem;">正确答案: ${Array.isArray(q.answer)?q.answer.join(', '):q.answer}</div><div style="padding:4px 0;color:var(--text-light);font-size:0.82rem;">${q.explanation}</div></div>`).join('');
-    $('#redo-wrong').classList.remove('hidden'); $('#redo-wrong').onclick=()=>{state.categoryFilter=currentCat||'';const qs=currentCat?filtered:wrongQs;if(qs.length===0)return;startPractice(qs);};
-    $('#clear-wrong').onclick=()=>{if(confirm('确认清空所有错题记录？')){state.wrongBook=[];saveWrongBook();renderWrongBook();renderHome();}};
+    showPage('wrongbook');
+    var wrongQs=ALL_QUESTIONS.filter(function(q){return state.wrongBook.includes(q.id);});
+    $('#wrong-count-display').textContent=wrongQs.length;
+    var catFilter=$('#wrong-cat-filter');
+    var currentCat=catFilter.value;
+    var cats=[...new Set(wrongQs.map(function(q){return q.category;}))];
+    catFilter.innerHTML='<option value="">全部分类</option>'+cats.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+    catFilter.value=currentCat||'';
+    var filtered=wrongQs;
+    if(currentCat) filtered=filtered.filter(function(q){return q.category===currentCat;});
+    var list=$('#wrong-list');
+    if(filtered.length===0){
+      list.innerHTML='<div class="card" style="text-align:center;color:var(--text-light);">暂无错题</div>';
+      $('#redo-wrong').classList.add('hidden');
+      return;
+    }
+    list.innerHTML=filtered.map(function(q,i){
+      var userAns=state.wrongAnswers[q.id];
+      var correctAnsDisplay='';
+      var userAnsDisplay='';
+      var optionsHtml='';
+      var prefixLabels=q.type==='judge'?['A','B']:['A','B','C','D','E','F'];
+      var isMulti=q.type==='multiple';
+
+      // Format correct answer
+      if(isMulti){
+        correctAnsDisplay=q.answer.join(', ');
+      }else if(q.type==='fill'||q.type==='short'){
+        correctAnsDisplay=Array.isArray(q.answer)?q.answer.join('；'):q.answer;
+      }else{
+        correctAnsDisplay=q.answer;
+      }
+
+      // Format user answer
+      if(userAns!==undefined&&userAns!==null){
+        if(isMulti){
+          userAnsDisplay=Array.isArray(userAns)?userAns.join(', '):userAns;
+        }else if(q.type==='fill'||q.type==='short'){
+          userAnsDisplay=Array.isArray(userAns)?userAns.join('；'):userAns;
+        }else{
+          userAnsDisplay=userAns;
+        }
+      }else{
+        userAnsDisplay='未作答';
+      }
+
+      // Build options with highlighting
+      if(q.type==='single'||q.type==='multiple'||q.type==='judge'){
+        var opts=q.options;
+        if(q.type==='judge') opts=['正确','错误'];
+        var correctLetters=isMulti?q.answer:[q.answer];
+        var userLetters=[];
+        if(userAns!==undefined&&userAns!==null){
+          userLetters=isMulti?(Array.isArray(userAns)?userAns:[]):[userAns];
+        }
+        optionsHtml='<div class="wrong-options">'+opts.map(function(o,j){
+          var label=o.replace(/^[A-F]\.\s*/,'');
+          var prefix=prefixLabels[j]||'';
+          var cls='wrong-option';
+          if(correctLetters.includes(prefix)) cls+=' wrong-option-correct';
+          if(userLetters.includes(prefix)&&!correctLetters.includes(prefix)) cls+=' wrong-option-user';
+          return '<div class="'+cls+'"><span class="prefix">'+prefix+'.</span>'+label+'</div>';
+        }).join('')+'</div>';
+      }
+
+      return '<div class="wrong-item">'+
+        '<div class="q-header">'+
+          '<span class="q-num">'+(i+1)+'. <span class="q-type-badge badge-'+q.type+'">'+TYPE_MAP[q.type]+'</span></span>'+
+          '<span style="font-size:0.8rem;color:var(--text-light);">'+q.category+' | '+q.law+'</span>'+
+        '</div>'+
+        '<div class="q-title">'+q.question+'</div>'+
+        optionsHtml+
+        '<div class="wrong-answer-row"><span class="wrong-label">你的答案：</span><span class="wrong-user-answer">'+userAnsDisplay+'</span></div>'+
+        '<div class="wrong-answer-row"><span class="wrong-label">正确答案：</span><span class="wrong-correct-answer">'+correctAnsDisplay+'</span></div>'+
+        '<div class="wrong-explanation">'+q.explanation+'</div>'+
+      '</div>';
+    }).join('');
+    $('#redo-wrong').classList.remove('hidden');
+    $('#redo-wrong').onclick=function(){
+      state.categoryFilter=currentCat||'';
+      var qs=currentCat?filtered:wrongQs;
+      if(qs.length===0) return;
+      startPractice(qs);
+    };
+    $('#clear-wrong').onclick=function(){
+      if(confirm('确认清空所有错题记录？')){
+        state.wrongBook=[];
+        state.wrongAnswers={};
+        saveWrongBook();
+        saveWrongAnswers();
+        renderWrongBook();
+        renderHome();
+      }
+    };
   }
 
   // ========== 背诵模式 - 范围选择 ==========
