@@ -28,6 +28,70 @@
       const hr=localStorage.getItem('yjld_practice_history'); if(hr){try{state.historyRecords=JSON.parse(hr);}catch(e){state.historyRecords=[];}}
     }catch(e){}
   }
+
+  // ========== 练习进度保存与恢复 ==========
+  function saveProgress(){
+    if(state.currentQuestions.length===0) return;
+    var progress={
+      category:state.categoryFilter||'全部分类',
+      types:TYPES.filter(function(t){return state.typeFilter[t];}),
+      questionIds:state.currentQuestions.map(function(q){return q.id;}),
+      answers:state.userAnswers,
+      currentIndex:state.currentIndex,
+      startTime:Date.now(),
+      examMode:state.examMode,
+      examSeconds:state.examSeconds
+    };
+    try{localStorage.setItem('yjld_practice_progress',JSON.stringify(progress));}catch(e){}
+  }
+  function clearProgress(){
+    try{localStorage.removeItem('yjld_practice_progress');}catch(e){}
+  }
+  function checkProgress(){
+    try{
+      var saved=localStorage.getItem('yjld_practice_progress');
+      if(!saved) return null;
+      return JSON.parse(saved);
+    }catch(e){return null;}
+  }
+  function resumeProgress(){
+    var progress=checkProgress();
+    if(!progress) return;
+    var qs=progress.questionIds.map(function(id){return ALL_QUESTIONS.find(function(q){return q.id===id;});}).filter(Boolean);
+    if(qs.length===0){clearProgress();return;}
+    state.examMode=progress.examMode||false;
+    state.currentQuestions=qs;
+    state.currentIndex=progress.currentIndex;
+    state.userAnswers=progress.answers||{};
+    state.categoryFilter=progress.category==='全部分类'?'':progress.category;
+    TYPES.forEach(function(t){state.typeFilter[t]=false;});
+    (progress.types||[]).forEach(function(t){state.typeFilter[t]=true;});
+    if(state.examMode){
+      state.examSeconds=progress.examSeconds||3600;
+      showPage('exam');
+      $('#exam-header').classList.remove('hidden');
+      $('#exam-timer').textContent=formatTime(state.examSeconds);
+      $('#exam-timer').classList.remove('warning','danger');
+      clearInterval(state.examTimer);
+      state.examTimer=setInterval(function(){
+        state.examSeconds--;
+        $('#exam-timer').textContent=formatTime(state.examSeconds);
+        if(state.examSeconds<600) $('#exam-timer').classList.add('warning');
+        if(state.examSeconds<300) $('#exam-timer').classList.add('danger');
+        if(state.examSeconds<=0){clearInterval(state.examTimer);submitExam();}
+      },1000);
+    }else{
+      clearInterval(state.examTimer);
+    }
+    renderExamPage();
+  }
+  function showProgressModal(){
+    $('#progress-modal').classList.remove('hidden');
+  }
+  function hideProgressModal(){
+    $('#progress-modal').classList.add('hidden');
+  }
+
   function saveWrongBook(){ try{ localStorage.setItem('yjld_wrongbook',JSON.stringify(state.wrongBook)); }catch(e){} }
   function saveEbbing(){ try{ localStorage.setItem('yjld_ebbinghaus',JSON.stringify(state.reciteEbbing)); }catch(e){} }
   function saveEbbingStart(){ try{ localStorage.setItem('yjld_ebbing_start',state.reciteStartDate||''); }catch(e){} }
@@ -115,10 +179,28 @@
       btn.onclick=()=>{startPractice(qs);};
     }
   }
-  function startPractice(qs){state.examMode=false;state.currentQuestions=qs;state.currentIndex=0;state.userAnswers={};clearInterval(state.examTimer);renderExamPage();}
+  function startPractice(qs){
+  var progress=checkProgress();
+  if(progress){
+    state._pendingRestart=function(){doStartPractice(qs);};
+    showProgressModal();
+    return;
+  }
+  doStartPractice(qs);
+}
+function doStartPractice(qs){state.examMode=false;state.currentQuestions=qs;state.currentIndex=0;state.userAnswers={};clearInterval(state.examTimer);renderExamPage();}
 
   // ========== 模拟考试 ==========
   function startExam(){
+  var progress=checkProgress();
+  if(progress){
+    state._pendingRestart=function(){doStartExam();};
+    showProgressModal();
+    return;
+  }
+  doStartExam();
+}
+function doStartExam(){
     const pick=(type,n)=>{const pool=ALL_QUESTIONS.filter(q=>q.type===type);const shuffled=pool.sort(()=>Math.random()-0.5);return shuffled.slice(0,Math.min(n,pool.length));};
     let examQs=[...pick('single',25),...pick('multiple',10),...pick('judge',8),...pick('fill',4),...pick('short',3)].sort(()=>Math.random()-0.5);
     state.examMode=true;state.currentQuestions=examQs;state.currentIndex=0;state.userAnswers={};state.examSeconds=3600;clearInterval(state.examTimer);
@@ -151,11 +233,13 @@
     $('#btn-prev').disabled=state.currentIndex===0;
     if(state.currentIndex===total-1){$('#btn-next').textContent='交卷';$('#btn-next').className='btn btn-accent';}else{$('#btn-next').textContent='下一题';$('#btn-next').className='btn btn-primary';}
     explanationWrap.innerHTML='';
+    saveProgress();
   }
   function goPrev(){if(state.currentIndex>0){state.currentIndex--;renderExamPage();}}
   function goNext(){const qs=state.currentQuestions;if(state.currentIndex<qs.length-1){state.currentIndex++;renderExamPage();}else{submitExam();}}
 
   function submitExam(){
+    clearProgress();
     clearInterval(state.examTimer);if(state.examMode)$('#exam-header').classList.add('hidden');
     const qs=state.currentQuestions;let correct=0,total=qs.length;const details=[];
     qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);}details.push({question:q,userAnswer:userAns,isCorrect});});
@@ -401,6 +485,17 @@
   $('#flashcard-scene').addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-touchStartX, dy=e.changedTouches[0].clientY-touchStartY;
     if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>60&&!state.reciteIsFlipped){flipCard();}else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>60&&state.reciteIsFlipped){if(dx<0)recordAnswer(false);else recordAnswer(true);}
+  });
+
+  // ========== 进度恢复弹窗事件 ==========
+  $('#progress-modal-continue').addEventListener('click',function(){
+    hideProgressModal();
+    resumeProgress();
+  });
+  $('#progress-modal-restart').addEventListener('click',function(){
+    hideProgressModal();
+    clearProgress();
+    if(state._pendingRestart){state._pendingRestart();state._pendingRestart=null;}
   });
 
   // ========== 初始化 ==========
