@@ -210,6 +210,13 @@ function doStartExam(){
     state.examTimer=setInterval(()=>{state.examSeconds--;$('#exam-timer').textContent=formatTime(state.examSeconds);if(state.examSeconds<600)$('#exam-timer').classList.add('warning');if(state.examSeconds<300)$('#exam-timer').classList.add('danger');if(state.examSeconds<=0){clearInterval(state.examTimer);submitExam();}},1000);
   }
   function formatTime(s){const m=Math.floor(s/60);const sec=s%60;return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;}
+  function formatWrongTime(isoStr){
+    if(!isoStr) return '未知';
+    try{
+      var d=new Date(isoStr);
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+    }catch(e){return '未知';}
+  }
 
   // ========== 答题页 ==========
   function renderExamPage(){
@@ -244,7 +251,7 @@ function doStartExam(){
     clearProgress();
     clearInterval(state.examTimer);if(state.examMode)$('#exam-header').classList.add('hidden');
     const qs=state.currentQuestions;let correct=0,total=qs.length;const details=[];
-    qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);state.wrongAnswers[q.id]=userAns;}details.push({question:q,userAnswer:userAns,isCorrect});});
+    qs.forEach((q,i)=>{const userAns=state.userAnswers[i];let isCorrect=false;if(q.type==='multiple'){const ua=(userAns||[]).sort().join(''),ca=[...q.answer].sort().join('');isCorrect=ua===ca;}else if(q.type==='fill'||q.type==='short'){isCorrect=false;}else{isCorrect=userAns===q.answer;}if(isCorrect)correct++;if(!isCorrect&&q.type!=='short'){if(!state.wrongBook.includes(q.id))state.wrongBook.push(q.id);state.wrongAnswers[q.id]={answer:userAns,timestamp:new Date().toISOString()};}details.push({question:q,userAnswer:userAns,isCorrect});});
     saveWrongBook();
     saveWrongAnswers();
     const rate=total>0?Math.round(correct/total*100):0;
@@ -282,7 +289,17 @@ function doStartExam(){
       return;
     }
     list.innerHTML=filtered.map(function(q,i){
-      var userAns=state.wrongAnswers[q.id];
+      var waRaw=state.wrongAnswers[q.id];
+      var userAns, wrongTime;
+      if(waRaw&&waRaw.timestamp!==undefined){
+        // 新格式：{answer, timestamp}
+        userAns=waRaw.answer;
+        wrongTime=waRaw.timestamp;
+      }else{
+        // 旧格式兼容：直接存答案值
+        userAns=waRaw;
+        wrongTime=null;
+      }
       var correctAnsDisplay='';
       var userAnsDisplay='';
       var optionsHtml='';
@@ -338,7 +355,8 @@ function doStartExam(){
         '<div class="q-title">'+q.question+'</div>'+
         optionsHtml+
         '<div class="wrong-answer-row"><span class="wrong-label">你的答案：</span><span class="wrong-user-answer">'+userAnsDisplay+'</span></div>'+
-        '<div class="wrong-answer-row"><span class="wrong-label">正确答案：</span><span class="wrong-correct-answer">'+correctAnsDisplay+'</span></div>'+
+        '<div class="wrong-answer-row"><span class="wrong-label">正确��案：</span><span class="wrong-correct-answer">'+correctAnsDisplay+'</span></div>'+
+        (wrongTime?'<div class="wrong-time-row">错误时间：'+formatWrongTime(wrongTime)+'</div>':'')+
         '<div class="wrong-explanation">'+q.explanation+'</div>'+
       '</div>';
     }).join('');
